@@ -1,0 +1,27 @@
+- name: Install and configure CNTLM using username and password
+hosts: all
+#vars_prompt:
+#  - name: "cntlm_pwd"
+#    prompt: "Enter password for cntlm_user"
+#    when: cntlm_pwd is not defined
+#    domain is the proxy domain user is the one in AD
+tasks:
+    - debug:
+        msg: "Setting up cntlm for {{cntlm_domain}}\\{{cntlm_user}} "
+    - template: src=files/repos/epel-internal.repo dest=/etc/yum.repos.d/epel.repo
+    - yum: name=cntlm state=present
+    - set_fact: cntlm_pwd={{ srv_password }}
+    when: cntlm_pwd is not defined
+    - name: Generating hash from ntlm password
+    shell: cntlm -H -u {{cntlm_user}} -d {{cntlm_domain}} <<< "{{cntlm_pwd}}" | grep PassNTLMv2
+    #expect:
+    #  command: "cntlm -H -u {{cntlm_user}} -d {{cntlm_domain}}"
+    #  responses:
+    #    Password: "{{cntlm_pwd}}"
+    register: cntlm_pwd_hash
+    - template: src=files/cntlm.conf.j2 dest=/etc/cntlm.conf
+    notify: reload cntlm
+    - systemd: name=cntlm enabled=yes state=started
+    handlers:
+        - name: reload cntlm
+    systemd: name=cntlm daemon_reload=yes state=restarted
