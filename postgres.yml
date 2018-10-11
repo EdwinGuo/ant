@@ -1,0 +1,41 @@
+- hosts: postgres
+name: Install and configure Postgresql server
+tasks:
+    - template: src=files/repos/postgres.repo dest=/etc/yum.repos.d/postgres.repo
+    - copy: src=files/keys/RPM-GPG-KEY-PGDG-96 dest=/etc/pki/rpm-gpg/RPM-GPG-KEY-PGDG-96
+    - yum: name="{{item}}" state=present
+    with_items:
+        - postgresql96-server
+        - postgresql96-devel
+    - file: "name={{pg_root}} state=directory owner=postgres group=postgres mode=0700"
+    - expect:
+        command: "/usr/pgsql-9.6/bin/initdb -D {{pg_root}} -W"
+        creates: "{{pg_root}}/postgresql.conf"
+        responses:
+            "Enter(.*):": "{{pg_su_password}}"
+    become: yes
+    become_user: postgres
+    - file: path=/var/run/postgresql/ state=directory owner=postgres group=postgres mode=751
+    - name: Ensure PostgreSQL is listening on all IPv4
+    lineinfile: dest={{pg_root}}/postgresql.conf
+        regexp='^#?listen_addresses\s*='
+        line="listen_addresses = '0.0.0.0'"
+        state=present
+    tags: config
+    notify: restart postgres
+    - name: Ensure PostgreSQL is listening on all IPv4
+    lineinfile: dest={{pg_root}}/postgresql.conf
+        regexp='^#?port\s*='
+        line="port = {{pg_port}}"
+        state=present
+    tags: config
+    notify: restart postgres
+    - template: src=files/pg_hba.conf dest={{pg_root}}/pg_hba.conf owner=postgres group=postgres
+    notify: restart postgres
+    tags: config
+    - systemd: "name=postgresql-{{pg_version}} enabled=yes state=started"
+    tags: config
+tags: install
+handlers:
+    - name: restart postgres
+    systemd: "name=postgresql-{{pg_version}} state=restarted"

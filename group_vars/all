@@ -1,2 +1,4 @@
 cntlm_user: Edwin
 cntlm_domain: example.com
+pg_root: /var/lib/pgsql/9.6/data
+
